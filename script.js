@@ -27,7 +27,7 @@ class Index{
 
             $("#peso").toggleClass("bg-info bg-warning");
             try{
-                let resp = await $.get('/peso');
+                let resp = await $.get('/peso?puerto='+this?.configuracion?.puerto);
                 this.ultimoPeso = resp;
                 $("#peso").text(resp.pesoGr + ' gr');
             }catch(e){
@@ -64,7 +64,7 @@ class Index{
             }
         });
         $("[name='desconectar']").click(async (e)=>{
-            let resp = await $.get('/desconectar');
+            let resp = await $.get('/desconectar?puerto='+this?.configuracion?.puerto);
             console.log(resp);
             if(resp == 'ok'){
                 this.conectado = false;
@@ -78,7 +78,7 @@ class Index{
             this.tempBlock = true;
             let marquesina = $("[name='marquesina']").val() || '';
             let resp = await $.post({
-                url: '/enviar-marquesina',
+                url: '/enviar-marquesina?puerto='+this?.configuracion?.puerto,
                 data: { marquesina }
             });
             console.log(resp);
@@ -87,7 +87,7 @@ class Index{
         $("[name='obtener-sectores']").click(async (e)=>{
             if(!this.conectado) return alert("No está conectado a la balanza");
             this.tempBlock = true;
-            let resp = await $.get('/sectores');
+            let resp = await $.get('/sectores?puerto='+this?.configuracion?.puerto);
             console.log(resp);
             this.sectores = resp;
             this.listarSectores();
@@ -96,7 +96,7 @@ class Index{
         $("[name='obtener-productos']").click(async (e)=>{
             if(!this.conectado) return alert("No está conectado a la balanza");
             this.tempBlock = true;
-            let resp = await $.get('/productos');
+            let resp = await $.get('/productos?puerto='+this?.configuracion?.puerto);
             console.log(resp);
             if(Array.isArray(resp)) this.productos = resp;
             this.listarProductos();
@@ -156,7 +156,7 @@ class Index{
             
             let resp = await $.ajax({
                 method: 'DELETE',
-                url: '/eliminar-sector',
+                url: '/eliminar-sector?puerto='+this?.configuracion?.puerto,
                 data: { numero }
             })
             console.log(resp);
@@ -172,7 +172,7 @@ class Index{
 
             let resp = await $.ajax({
                 method: 'POST',
-                url: '/grabar-sector',
+                url: '/grabar-sector?puerto='+this?.configuracion?.puerto,
                 data: { numero, nombre }
             })
             console.log(resp);
@@ -249,7 +249,7 @@ class Index{
         let v = Number($("[name='leer-plu']").val());
         if(!v || isNaN(v) || v < 0) return alert("Ingrese un PLU válido");
 
-        let resp = await $.get('/leer-producto?plu=' + v.toString());
+        let resp = await $.get('/leer-producto?plu=' + v.toString() + "&puerto=" + this?.configuracion?.puerto);
         console.log(resp);
         alert(JSON.stringify(resp.details,null,2));
     }

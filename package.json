@@ -4,7 +4,8 @@
   "description": "test cuora max",
   "main": "index.js",
   "scripts": {
-    "start": "node ."
+    "start": "node .",
+    "start-multi": "node index-multi.js"
   },
   "author": "Mathias Burgio",
   "license": "ISC",
