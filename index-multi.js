@@ -33,48 +33,51 @@ app.get("/puertos", async (req, res)=>{
 app.get("/conectar", async (req, res)=>{
     try{
         const puerto = req.query.puerto;
-        const addr = req.query.id;
+        const addr = Number(req.query.id);
     
-        if(balanzas.find(b => b.puerto === puerto)) throw new Error("Ya hay una balanza conectada en ese puerto");
-        const balanza = new cuoraMax.Balanza();
+        if(balanzas.find(b => b.addr === addr)) throw new Error("Ya hay una balanza conectada en ese puerto");
+        let balanza = new cuoraMax.Balanza();
         balanza.open(puerto, addr);
-        balanzas.push({puerto, balanza});
+        balanzas.push(balanza);
         res.send("ok");
         res.end();
     }catch(err){ 
         res.status(500).end("error: " + err.message);
     }
 });
-app.get("/desconectar", async (req, res)=>{
+app.get("/desconectar/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+
         balanza.close();
-        balanzas = balanzas.filter(b => b.puerto !== puerto);
+        balanzas = balanzas.filter(b => b.addr !== addr);
         res.send("ok");
         res.end();
     }catch(err){
         res.status(500).end("error: " + err.message);
     }
 });
-app.get("/peso", async (req, res)=>{
+app.get("/peso/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
-        const resp = await balanza.balanza.getWeight();
+
+        const resp = await balanza.getWeight();
         res.json(resp);
         res.end();
     }catch(err){
         res.status(500).end("error: " + err.message);
     }
 });
-app.post("/enviar-marquesina", async (req, res)=>{
+app.post("/enviar-marquesina/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+
         balanza.setMarquee(req.body.marquesina || '');
         res.end("ok");
     }catch(err){
@@ -84,11 +87,12 @@ app.post("/enviar-marquesina", async (req, res)=>{
 });
 
 // Sectores son grupos/categorias. Ej: Carniceria, Verduleria, etc
-app.get("/sectores", async (req, res)=>{
+app.get("/sectores/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+
         const sectores = await balanza.listSectors();
         res.json(sectores.parsed);
     }catch(err){
@@ -96,11 +100,12 @@ app.get("/sectores", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
-app.delete("/eliminar-sector", async (req, res)=>{
+app.delete("/eliminar-sector/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+
         await balanza.deleteSector(req.body.numero || '0');
         res.end("ok");
     }catch(err){
@@ -108,12 +113,12 @@ app.delete("/eliminar-sector", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
-app.post("/grabar-sector", async (req, res)=>{
+app.post("/grabar-sector/:iddr", async (req, res)=>{
     try{
-        console.log(req.body);
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+        
         const resp = await balanza.writeSector(req.body.numero || '0', req.body.nombre || '');
         console.log(resp);
         res.end("ok");
@@ -123,11 +128,12 @@ app.post("/grabar-sector", async (req, res)=>{
     }
 });
 
-app.get("/productos", async (req, res)=>{
+app.get("/productos/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+
         const productos = await balanza.listProductsFull();
         console.log(productos);
         res.json(productos);
@@ -136,11 +142,12 @@ app.get("/productos", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
-app.delete("/eliminar-producto", async (req, res)=>{
-    try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+app.delete("/eliminar-producto/:iddr", async (req, res)=>{
+        try{
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+        
         await balanza.deleteProduct(req.body.plu || '0');
         res.end("ok");
     }catch(err){
@@ -148,12 +155,12 @@ app.delete("/eliminar-producto", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
-app.post("/grabar-producto", async (req, res)=>{
+app.post("/grabar-producto/:iddr", async (req, res)=>{
     try{
-        console.log(req.body);
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+        
         await balanza.writeProduct(req.body);
         res.end("ok");
     }catch(err){
@@ -161,11 +168,12 @@ app.post("/grabar-producto", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
-app.get("/leer-producto", async (req, res)=>{
+app.get("/leer-producto/:iddr", async (req, res)=>{
     try{
-        const puerto = req.query.puerto;
-        let balanza = balanzas.find(b => b.puerto === puerto);
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+        
         const resp = await balanza.readProduct(req.query.plu || '0');
         res.json(resp);
     }catch(err){
@@ -173,6 +181,10 @@ app.get("/leer-producto", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
+//manejo de 404
+app.use((req, res, next) => {
+    res.status(404).send("404 Not Found - " + req.originalUrl);
+})
 app.listen(process.env.PORT || 3000, () => {
     console.log("Server started on port " + (process.env.PORT || 3000));
 });
