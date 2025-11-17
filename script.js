@@ -57,7 +57,7 @@ class Index{
                 $("[name='conectar']").prop('disabled', true); 
                 $("[name='desconectar']").prop('disabled', false);
             
-            
+                if(!this.configuracion) this.configuracion = {};
                 this.configuracion.puerto = puerto;
                 this.configuracion.id = id;
                 localStorage.setItem("configuracion-balanza-cuora-max", JSON.stringify(this.configuracion) );
