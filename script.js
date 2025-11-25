@@ -337,5 +337,6 @@ class Index{
             ind++;
         }
         console.log(resultado);
+        return true;
     }
 }
