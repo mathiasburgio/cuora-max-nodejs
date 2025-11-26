@@ -22,9 +22,9 @@ class Index{
         }
 
         $("#peso").on("click", async ev=>{
+            if(this.tempBlock) return;
+            this.tempBlock = true;
             try{
-                if(this.tempBlock) return;
-                this.tempBlock = true;
                 let resp = await $.get(`/peso/${this.configuracion.id}/`);
                 this.ultimoPeso = resp;
                 $("#peso").text(resp.pesoGr + ' gr');
@@ -36,51 +36,83 @@ class Index{
         })
 
         $("[name='obtener-puertos']").click(async (e)=>{
-            await this.obtenerPuertos();
+            try{
+                if(this.tempBlock) return;
+                this.tempBlock = true;
+                await this.obtenerPuertos();
+            }catch(err){
+                console.log(err);
+            }finally{
+                this.tempBlock = false;
+            }
         });
         $("[name='conectar']").click(async (e)=>{
-            let puerto = $("[name='puerto']").val();
-            let id = $("[name='id']").val();
-            if(!puerto) return alert("Seleccione un puerto");
-            if(!id) return alert("Ingrese un ID de balanza");
-
-            let resp = await $.get(`/conectar?puerto=${puerto}&id=${id}`);
-            console.log(resp);
-            if(resp == 'ok'){
-                this.conectado = true;
-                $("[name='conectar']").prop('disabled', true); 
-                $("[name='desconectar']").prop('disabled', false);
-            
-                if(!this.configuracion) this.configuracion = {};
-                this.configuracion.puerto = puerto;
-                this.configuracion.id = id;
-                localStorage.setItem("configuracion-balanza-cuora-max", JSON.stringify(this.configuracion) );
+            if(this.tempBlock) return;
+            this.tempBlock = true;
+            try{
+                let puerto = $("[name='puerto']").val();
+                let id = $("[name='id']").val();
+                if(!puerto) throw "Seleccione un puerto";
+                if(!id) throw "Ingrese un ID de balanza";
+    
+                let resp = await $.get(`/conectar?puerto=${puerto}&id=${id}`);
+                console.log(resp);
+                if(resp == 'ok'){
+                    this.conectado = true;
+                    $("[name='conectar']").prop('disabled', true); 
+                    $("[name='desconectar']").prop('disabled', false);
+                
+                    if(!this.configuracion) this.configuracion = {};
+                    this.configuracion.puerto = puerto;
+                    this.configuracion.id = id;
+                    localStorage.setItem("configuracion-balanza-cuora-max", JSON.stringify(this.configuracion) );
+                    modal.message("Conectado a la balanza");
+                }
+            }catch(err){
+                console.log(err);
+                modal.message(err.toString());
+            }finally{
+                this.tempBlock = false;
             }
         });
         $("[name='desconectar']").click(async (e)=>{
-            let resp = await $.get(`/desconectar/${this.configuracion.id}/`);
-            console.log(resp);
-            if(resp == 'ok'){
-                this.conectado = false;
-                $("[name='conectar']").prop('disabled', false); 
-                $("[name='desconectar']").prop('disabled', true);
-                $("#peso").text('---');
+            try{
+                let resp = await $.get(`/desconectar/${this.configuracion.id}/`);
+                console.log(resp);
+                if(resp == 'ok'){
+                    this.conectado = false;
+                    $("[name='conectar']").prop('disabled', false); 
+                    $("[name='desconectar']").prop('disabled', true);
+                    $("#peso").text('---');
+                    modal.message("Desconectado de la balanza");
+                }
+            }catch(err){
+                console.log(err);
+                modal.message(err.toString());
+            }finally{
             }
         });
         $("[name='enviar-marquesina']").click(async (e)=>{
-            if(!this.conectado) return alert("No está conectado a la balanza");
+            if(!this.conectado) return modal.message("No está conectado a la balanza");
             if(this.tempBlock) return;
             this.tempBlock = true;
-            let marquesina = $("[name='marquesina']").val() || '';
-            let resp = await $.post({
-                url: `/enviar-marquesina/${this.configuracion.id}/`,
-                data: { marquesina }
-            });
-            console.log(resp);
-            this.tempBlock = false;
+            try{
+                let marquesina = $("[name='marquesina']").val() || '';
+                let resp = await $.post({
+                    url: `/enviar-marquesina/${this.configuracion.id}/`,
+                    data: { marquesina }
+                });
+                console.log(resp);
+                modal.message("Marquesina enviada");
+            }catch(err){
+                console.log(err);
+                modal.message(err.toString());
+            }finally{
+                this.tempBlock = false;
+            }
         });
         $("[name='obtener-sectores']").click(async (e)=>{
-            if(!this.conectado) return alert("No está conectado a la balanza");
+            if(!this.conectado) return modal.message("No está conectado a la balanza");
             if(this.tempBlock) return;
             this.tempBlock = true;
             let resp = await $.get(`/sectores/${this.configuracion.id}/`);
@@ -90,30 +122,75 @@ class Index{
             this.tempBlock = false;
         });
         $("[name='obtener-productos']").click(async (e)=>{
-            if(!this.conectado) return alert("No está conectado a la balanza");
+            if(!this.conectado) return modal.message("No está conectado a la balanza");
             if(this.tempBlock) return;
-            this.tempBlock = true;
-            let resp = await $.get(`/productos/${this.configuracion.id}/`);
-            console.log(resp);
-            if(Array.isArray(resp)) this.listarProductos(resp);
-            this.tempBlock = false;
+            let errMessage = "";
+            let productos = [];
+            try{
+                this.tempBlock = true;
+                modal.waiting("Leyendo...");
+                let busquedaPluDesde = Number( $("[name='busqueda-plu-desde']").val() || 0 );
+                let busquedaPluLimite = Number( $("[name='busqueda-plu-limite']").val() || 100 );
+                let resp = await $.get(`/productos/${this.configuracion.id}/?start=${busquedaPluDesde}&limit=${busquedaPluLimite}`);
+                
+                //verifico q tenga plu (que sea un numero) y nombre 
+                productos = resp.map(item=>item.details)
+                .filter(p=> p && p.plu && p.name && isNaN(Number(p.plu)) == false );
+                console.log(productos);
+                if(Array.isArray(resp)) this.listarProductos(productos);
+            }catch(err){
+                console.log(err);
+                errMessage = err.toString();
+            }finally{
+                this.tempBlock = false;
+                modal.hide(false, ()=>{
+                    if(errMessage){
+                        modal.message("ERROR: " + errMessage);
+                    }else{
+                        modal.message(`Se encontraron <b>${productos.length}</b> productos.<br>El listado puede llegar incompleto, verifique la cantidad de productos.`);
+                    }
+                });
+            }
         });
         $("[name='agregar-producto']").click((e)=>{
             this.maxPlu++;
             this.agregarLineaProducto();
         });
-        $("[name='grabar-productos']").click(async e=>{
+        $("[name='grabar-listado-productos']").click(async e=>{
+            if(!this.conectado) return modal.message("No está conectado a la balanza");
             if(this.tempBlock) return;
             this.tempBlock = true;
-            await this.grabarProductos();
-            this.tempBlock = false;
-            alert("Proceso ejecutado, ver consola para más detalles");
+            let errMessage = "";
+            try{
+                modal.waiting("Grabando...");
+                await this.grabarListadoProductos();
+                modal.message("Proceso ejecutado, intente recargar listado de productos");
+            }catch(err){
+                console.log(err);
+                errMessage = err.toString();
+            }finally{
+                this.tempBlock = false;
+                modal.hide(false, ()=>{
+                    if(errMessage){
+                        modal.message("ERROR: " + errMessage);
+                    }else{
+                        modal.message("Proceso finalizado sin errores.");
+                    }
+                });
+            }
         })
         $("[name='leer-producto']").click(async (e)=>{
-            if(!this.conectado) return alert("No está conectado a la balanza");
+            if(!this.conectado) return modal.message("No está conectado a la balanza");
+            if(this.tempBlock) return;
             this.tempBlock = true;
-            this.leerProducto();
-            this.tempBlock = false;
+            try{
+                await this.leerProducto();
+            }catch(err){
+                console.log(err);
+                modal.message(err.toString());
+            }finally{
+                this.tempBlock = false;
+            }
         });
         $("[name='descargar-productos-csv']").click((e)=>{
             this.descargarProductosCSV();
@@ -130,11 +207,13 @@ class Index{
             
             let opt = "<option value=''>Seleccionar puerto</option>";
             this.puertos.forEach(p=>{
-                opt += `<option value="${p.path}">${p.path} - ${p?.friendlyName}</option>`;
+                let text = p.path;
+                if(p?.friendlyName) text += ` - ${p.friendlyName}`;
+                opt += `<option value="${p.path}">${text}</option>`;
             });
             $("[name='puerto']").html(opt);
         }else{
-            alert("Error al obtener puertos");
+            modal.message("Error al obtener puertos");
         }
     }
     listarSectores(){
@@ -202,18 +281,18 @@ class Index{
         listado.forEach((prod,i)=>{
             let tr = this.agregarLineaProducto();
             tr.find("[name='plu']").val(prod?.plu || this.maxPlu);
-            tr.find("[name='sector']").val(prod?.details?.sector || '');
-            tr.find("[name='nombre']").val(prod?.details?.name || '');
-            tr.find("[name='precio']").val(Number(prod?.details?.price1 || 0));
+            tr.find("[name='sector']").val(prod?.sector || '');
+            tr.find("[name='nombre']").val(prod?.name || '');
+            tr.find("[name='precio']").val(Number(prod?.price1 || 0));
         });
     }
     async leerProducto(){
         let v = Number($("[name='leer-plu']").val());
-        if(!v || isNaN(v) || v < 0) return alert("Ingrese un PLU válido");
+        if(!v || isNaN(v) || v < 0) return modal.message("Ingrese un PLU válido");
 
         let resp = await $.get(`/leer-producto/${this.configuracion.id}/?plu=${v.toString()}`);
         console.log(resp);
-        alert(JSON.stringify(resp.details,null,2));
+        modal.message(JSON.stringify(resp.details,null,2));
     }
     agregarLineaProducto(){
         let optSectores = "<option value=''>Sin sector</option>";
@@ -229,20 +308,55 @@ class Index{
                 <td><input autocomplete="off" name="nombre" type="text" class='form-control form-control-sm' /></td>
                 <td><input autocomplete="off" name="precio" type="text" class='form-control form-control-sm' /></td>
                 <td>
-                    <button class="btn btn-danger btn-sm" name="eliminar-producto">Eliminar</button>
+                    <button class="btn btn-success btn-sm" name="grabar-producto">Grabar</button>
+                    <button class="btn btn-danger btn-sm d-none" name="eliminar-producto">Eliminar</button>
                 </td>
             </tr>`;
         $("[name='tabla-productos'] tbody").append(tr);
+        const $tr = $("[name='tabla-productos'] tbody tr").last();
 
-        $("[name='tabla-productos'] [name='eliminar-producto']")
-        .off("click")
-        .on((e)=>{
-            let index = $(e.currentTarget).data('index');
-            let tr = $(e.currentTarget).closest("tr");
-            tr.remove();
+        $tr.find("[name='eliminar-producto']")
+        //.off("click")
+        .on("click", (ev)=>{
+            $(ev.currentTarget).closest("tr").remove();
+            modal.message("Producto eliminado de la lista, recuerde grabar los cambios");
+        });
+        $tr.find("[name='grabar-producto']")
+        //.off("click")
+        .on("click", async (ev)=>{
+            let index = $(ev.currentTarget).data('index');
+            let tr = $(ev.currentTarget).closest("tr");
+            
+            let data = {
+                plu: tr.find("[name='plu']").val(),
+                name: tr.find("[name='nombre']").val(),
+                sector: tr.find("[name='sector']").val(),
+                price: tr.find("[name='precio']").val() || 1,
+            }
+
+            if(this.tempBlock) return;
+            this.tempBlock = true;
+            try{
+                if(!data.plu) return modal.message("Ingrese un PLU");
+                if(!data.name) return modal.message("Ingrese un nombre");
+                modal.waiting("Grabando producto...");
+                let resp = await $.ajax({
+                    method: 'POST',
+                    url: `/grabar-producto/${this.configuracion.id}/`,
+                    data: data
+                });
+                console.log(resp);
+                modal.message("Producto grabado");
+            }catch(err){
+                console.log(err);
+                modal.message(err.toString());
+            }finally{
+                this.tempBlock = false;
+                modal.waiting(false);
+            }
         });
 
-        return $("[name='tabla-productos'] tbody").last();
+        return $tr;
     }
     descargarProductosCSV(separador = ','){
         let csv = "plu,sector,nombre,precio\n";
@@ -261,6 +375,7 @@ class Index{
         a.download = 'productos.csv';
         a.click();
         URL.revokeObjectURL(url);
+        modal.message("Archivo CSV descargado");
     }
     cargarProductosCSV(separador = ","){
         $("[name='input-cargar-productos-csv']").click();
@@ -292,50 +407,31 @@ class Index{
             reader.readAsText(file);
         });
     }
-    async grabarProductos(){
-        let resultado = [];
+    async grabarListadoProductos(){
+        let productos = [];
 
-        let rows =  $("[name='tabla-productos'] tbody tr");
-        let ind = 0;
-        for(let row of rows){
-            try{
-                let $tr = $(row);
-                let plu = $tr.find("[name='plu']").val();
-                let nombre = $tr.find("[name='nombre']").val();
-                let sector = $tr.find("[name='sector']").val();
-                let precio = $tr.find("[name='precio']").val();
+        $("[name='tabla-productos'] tbody tr").each((ind, row)=>{
+            let $tr = $(row);
+            let plu = $tr.find("[name='plu']").val();
+            let nombre = $tr.find("[name='nombre']").val();
+            let sector = $tr.find("[name='sector']").val();
+            let precio = $tr.find("[name='precio']").val();
+            productos.push({
+                plu: plu, 
+                name: nombre, 
+                sector: sector, 
+                price: precio,
+            });
+        });
 
-                let resp = await $.ajax({
-                    method: 'POST',
-                    url: `/grabar-producto/${this.configuracion.id}/`,
-                    data: { 
-                        plu: plu, 
-                        name: nombre, 
-                        sector: sector, 
-                        price: precio,
-                        //code: plu,
-                        //expiration: 0,
-                        //type: 'P', // P (pesable) U (unitario) E (escurrido) C (congelado)
-                        //tara: 0
-                    }
-                });
-                resultado.push({
-                    ind: ind,
-                    row: row,
-                    plu: plu,
-                    response: resp
-                })
-            }catch(err){
-                resultado.push({
-                    ind: ind,
-                    row: row,
-                    error: true,
-                    response: err
-                });
-            }
-            ind++;
-        }
-        console.log(resultado);
-        return true;
+        if(productos.length == 0) throw new Error("No hay productos para grabar");
+
+        let resp = await $.ajax({
+            method: 'POST',
+            url: `/grabar-listado-productos/${this.configuracion.id}/`,
+            data: { productos: JSON.stringify(productos) }
+        });
+        console.log(resp);
+        return resp;
     }
 }

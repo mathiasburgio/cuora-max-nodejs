@@ -28,7 +28,7 @@ function buildFrame(addr, func, data = '') {
 
 // Parsear respuesta: devuelve { addr, func, data: Buffer, crcValid }
 function parseFrame(buf) {
-  if (!Buffer.isBuffer(buf) || buf.length < 3) return { ok: false, reason: 'trama demasiado corta' };
+  if (!Buffer.isBuffer(buf)/*  || buf.length < 3 */) return { ok: false, reason: 'trama demasiado corta', buf: buf };
   const addr = buf[0];
   const func = buf[1];
   const crcRecv = buf[buf.length - 1];
@@ -48,7 +48,7 @@ function buildPluExtended(data) {
     function padText(t, len) {
         return String(t ?? "").padEnd(len, " ").slice(0, len);
     }
-    console.log(data.price);
+    //console.log(data.price);
     const parts = [];
     parts.push(padNum(data.plu, 4));                          // Número de PLU (4 dígitos)
     parts.push("2");                                          // Versión (fijo en "2")
@@ -65,6 +65,7 @@ function buildPluExtended(data) {
     parts.push(ingFlag);                                 // Flag2
     parts.push(padText(data.ingredients || "", 100));         // Ingredientes/otros (100 chars)
 
+    console.log("PLU parts:", "->" + parts.join("|") + "<-");
     return parts.join("");
 }
 
@@ -77,6 +78,7 @@ class Balanza {
         this.inactivityTimer = null;
         this.inactivityMs = 15; // protocolo ~5ms, usamos 6ms
         this.onFrame = null; // callback cuando llega una trama completa: (Buffer) => {}
+        this.streamMode = false; //permite la recepcion continua de datos
     }
 
     // abre puerto (ej: 'COM3' o '/dev/ttyUSB0'), addr: id de la balanza, baud por default 115200
@@ -107,9 +109,16 @@ class Balanza {
     }
 
     _onData(chunk) {
-        // acumula y reinicia timer
+        // 📌 MODO STREAM → se usa para LISTADO DE PLUs (FUNC 31)
+        if (this.streamMode) {
+            if (this.onFrame) this.onFrame(chunk);
+            return;
+        }
+
+        // 📌 MODO NORMAL → framing CUORA MAX por timeout
         this.buffer = Buffer.concat([this.buffer, chunk]);
         if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
+
         this.inactivityTimer = setTimeout(() => {
             const frame = this.buffer;
             this.buffer = Buffer.alloc(0);
@@ -133,9 +142,7 @@ class Balanza {
 
     // wrapper: enviar comando y esperar primera respuesta (o timeout)
     // timeoutMs default 2000
-    async sendCommand(func, data = '', timeoutMs = 3000, retries = 2) {
-        // limpiar buffer antes de enviar
-        this.buffer = Buffer.alloc(0);
+    async sendCommand(func, data = '', timeoutMs = 10_000, retries = 2) {
 
         const frame = buildFrame(this.addr, func, data);
         await this.writeFrame(frame);
@@ -143,28 +150,40 @@ class Balanza {
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 return await new Promise((resolve, reject) => {
+
+                    let cmdBuffer = Buffer.alloc(0);
+
                     const t = setTimeout(() => {
                         this.onFrame = null;
                         reject(new Error('timeout esperando respuesta'));
                     }, timeoutMs);
 
                     this.onFrame = (buf) => {
+                        // copiamos la trama completa del buffer de recepción
+                        cmdBuffer = Buffer.concat([cmdBuffer, buf]);
+
                         clearTimeout(t);
                         this.onFrame = null;
-                        const parsed = parseFrame(buf);
 
-                        // si la trama no está bien armada
+                        const parsed = parseFrame(cmdBuffer);
+                        console.log("parsed", parsed);
+
                         if (!parsed.ok) return reject(new Error('Respuesta inválida'));
-
-                        // si falla el CRC, lo manejamos fuera
-                        if (!parsed.crcValid) return reject(new Error('CRC inválido en respuesta'));
+                        if (!parsed.crcValid) {
+                            const ascii = parsed.data.toString("ascii");
+                            // si parece una trama ASCII válida, aceptarla igual
+                            if (/^[\x20-\x7E]*$/.test(ascii)) {
+                                resolve(parsed); 
+                                return;
+                            }
+                            return reject(new Error('CRC inválido en respuesta'));
+                        }
 
                         resolve(parsed);
                     };
                 });
             } catch (err) {
                 if (/CRC inválido/.test(err.message) && attempt < retries) {
-                    // esperar un poquito y reintentar
                     await new Promise(r => setTimeout(r, 100));
                     continue;
                 }
@@ -241,24 +260,35 @@ class Balanza {
         const resp = await this.sendCommand(10, number + name);
     }
     async listProducts(){
-        try{
-            await this.writeFrame(buildFrame(this.addr, 31, ""));
-            return new Promise((resolve, reject) => {
-                let buffer = Buffer.alloc(0);
-                const timeout = setTimeout(() => reject(new Error("timeout listado")), 5000);
-    
-                this.onFrame = (chunk) => {
-                    buffer = Buffer.concat([buffer, chunk]);
-                    if (buffer.includes(0x46)) { // ASCII 'F'
-                        clearTimeout(timeout);
-                        this.onFrame = null;
-                        resolve(buffer.toString("ascii").replaceAll(`\x00`, " "));
-                    }
-                };
-            });
-        }catch(e){
-            console.log("ERROR->",e);
-        }
+        // activamos modo stream
+        this.streamMode = true;
+
+        // enviamos comando (Función 31)
+        await this.writeFrame(buildFrame(this.addr, 31, ""));
+
+        return new Promise((resolve, reject) => {
+
+            let text = "";
+            const timeout = setTimeout(() => {
+                this.streamMode = false;
+                this.onFrame = null;
+                reject(new Error("timeout listado"));
+            }, 15000);
+
+            this.onFrame = (chunk) => {
+                // recibimos “paquetes crudos” tal cual llegan
+                const ascii = chunk.toString("ascii").replace(/\x00/g, "");
+                text += ascii;
+
+                // CORRECCIÓN: el protocolo indica que termina solo con 'F'
+                if (text.includes("F")) {
+                    clearTimeout(timeout);
+                    this.streamMode = false;
+                    this.onFrame = null;
+                    resolve(text);
+                }
+            };
+        });
     }
     async listProductsFull(){
         const resp = await this.listProducts();
@@ -270,7 +300,7 @@ class Balanza {
             return {plu, version};
         })
         .filter(p=> p.plu && p.version);
-        console.log("PLUs:", parsed);
+        //console.log("PLUs:", parsed);
         for(let p of parsed){
             const det = await this.readProduct(p.plu);
             p.details = det.details;
@@ -281,36 +311,60 @@ class Balanza {
 		plu = plu.padStart(6, '0');
 		const resp = await this.sendCommand(12, plu);
 	}
-	async writeProduct(data, updatePrice=true){
+	async writeProduct(data, updatePrice=true, versionSendCommand=1){
 		const dataPlu = buildPluExtended(data);
-        console.log("PLU DATA:", dataPlu);
-		const resp = await this.sendCommand(4, dataPlu);
+        //console.log("PLU DATA:", dataPlu);
+        let resp = null;
+        if(versionSendCommand===1){
+            resp = await this.sendCommand(4, dataPlu);
+        }else if(versionSendCommand===2){
+            resp = await this.sendCommandV2(4, dataPlu);
+        }
+        //console.log("writeProduct: finish");
         let resp2 = null;
-        if(updatePrice) resp2 = await this.updatePrice(data.plu, data.price, "2");
-
+        if(updatePrice){
+            await new Promise(r => setTimeout(r, 250));
+            this.buffer = Buffer.alloc(0);
+            resp2 = await this.updatePrice(data.plu, data.price, "2");
+            //console.log("updatePrice: finish");
+        }
 		return resp.data.toString('ascii').replaceAll(`\x00`, " ");
 	}
+    async writeProducts(productos, updatePrice=true){
+        let resps = [];
+        let ind = 0;
+        for(let prod of productos){
+            let r = await this.writeProduct(prod, updatePrice, 1);
+            resps.push({index: ind, plu: prod.plu, resp: r});
+            ind++;
+        }
+		return resps;
+	}
 	async readProduct(plu){
-        
-		const resp = await this.sendCommand(3, plu);
-		const s = resp.data.toString('ascii').replaceAll(`\x00`, " ");
-        resp.dataParsed = s;
-        resp.details = {
-            plu: s.slice(0,4).trim(),
-            version: s.slice(4,5).trim(),
-            name: s.slice(5,23).trim(),
-            price1: Number(s.slice(23,29).trim()),
-            price2: Number(s.slice(29,35).trim()),
-            code: s.slice(35,40).trim(),
-            sector: s.slice(40,42).trim(),
-            expiration: s.slice(42,46).trim(),
-            type: s.slice(46,47).trim(),
-            tara: Number(s.slice(47,51).trim()),
-            flag1: s.slice(51,52).trim(),
-            ingredientsFlag: s.slice(52,53).trim(),
-            ingredients: s.slice(53,153).trim(),
-        };
-		return {raw: resp, details: resp.details};
+        try{
+            plu = plu.toString().padStart(4, "0");
+            const resp = await this.sendCommand(3, plu, 2000, 0);
+            const s = resp.data.toString('ascii').replaceAll(`\x00`, " ");
+            resp.dataParsed = s;
+            resp.details = {
+                plu: s.slice(0,4).trim(),
+                version: s.slice(4,5).trim(),
+                name: s.slice(5,23).trim(),
+                price1: Number(s.slice(23,29).trim()),
+                price2: Number(s.slice(29,35).trim()),
+                code: s.slice(35,40).trim(),
+                sector: s.slice(40,42).trim(),
+                expiration: s.slice(42,46).trim(),
+                type: s.slice(46,47).trim(),
+                tara: Number(s.slice(47,51).trim()),
+                flag1: s.slice(51,52).trim(),
+                ingredientsFlag: s.slice(52,53).trim(),
+                ingredients: s.slice(53,153).trim(),
+            };
+            return {raw: resp, details: resp.details};
+        }catch(e){
+            return {raw: null, details: {}, error: e.message};
+        }
 	}
     async updatePrice(plu, newPrice, version="2"){
         plu = (plu).toString().padStart(4, '0'); 

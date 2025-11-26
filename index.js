@@ -24,6 +24,9 @@ app.get("/", (req, res)=>{
 app.get("/script.js", (req, res)=>{
     res.sendFile(__dirname + "/script.js");
 });
+app.get("/Modal2.js", (req, res)=>{
+    res.sendFile(__dirname + "/Modal2.js");
+});
 
 //funciones balanza
 app.get("/puertos", async (req, res)=>{
@@ -122,7 +125,7 @@ app.post("/grabar-sector/:iddr", async (req, res)=>{
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
         
         const resp = await balanza.writeSector(req.body.numero || '0', req.body.nombre || '');
-        console.log(resp);
+        //console.log(resp);
         res.end("ok");
     }catch(err){
         console.log(err);
@@ -132,12 +135,19 @@ app.post("/grabar-sector/:iddr", async (req, res)=>{
 
 app.get("/productos/:iddr", async (req, res)=>{
     try{
+        const start = parseInt(req.query?.start) || 0;
+        const limit = parseInt(req.query.limit) || 100;
+        if(start < 0 || limit <= 0 || isNaN(start) || isNaN(limit)) throw new Error("Parámetros inválidos");
+
         const addr = Number(req.params.iddr);
         let balanza = balanzas.find(b => b.addr === addr);
         if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
 
-        const productos = await balanza.listProductsFull();
-        console.log(productos);
+        let productos = [];
+        for(let i = start; i < start + limit; i++){
+            let prod = await balanza.readProduct((i).toString());
+            productos.push(prod);
+        }
         res.json(productos);
     }catch(err){
         console.log(err);
@@ -170,6 +180,19 @@ app.post("/grabar-producto/:iddr", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
+app.post("/grabar-listado-productos/:iddr", async (req, res)=>{
+    try{
+        const addr = Number(req.params.iddr);
+        let balanza = balanzas.find(b => b.addr === addr);
+        if(!balanza) throw new Error("No hay ninguna balanza conectada en ese puerto");
+        let productos = JSON.parse(req.body.productos || "[]");
+        await balanza.writeProducts(productos);
+        res.end("ok");
+    }catch(err){
+        console.log(err);
+        res.status(500).end("error: " + err.message);
+    }
+});
 app.get("/leer-producto/:iddr", async (req, res)=>{
     try{
         const addr = Number(req.params.iddr);
@@ -188,6 +211,6 @@ app.use((req, res, next) => {
     res.status(404).send("404 Not Found - " + req.originalUrl);
 })
 app.listen(process.env.PORT || 3000, () => {
-    console.log("Server started on port " + (process.env.PORT || 3000));
+    console.log("Server started on port " + (process.env.PORT || 3000) + " # " + new Date().toLocaleString() );
 });
 
