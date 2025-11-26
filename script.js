@@ -10,34 +10,29 @@ class Index{
     }
     async init(){
 
+        let dominioRasberry = window.location.hostname;
+        $("#dominio-raspberry").html(dominioRasberry);
+
         await this.obtenerPuertos();
 
         this.configuracion = JSON.parse( localStorage.getItem("configuracion-balanza-cuora-max"), "{}");
         if(this.configuracion){
             $("[name='puerto']").val(this.configuracion.puerto || '');
             $("[name='id']").val(this.configuracion.id || '');
-            if(this.configuracion.solicitarPesoContinuo === false) $("#peso").addClass("text-danger");
         }
 
-        setInterval(async ()=>{
-            if(this.conectado == false) return;
-            if(this?.configuracion?.solicitarPesoContinuo === false) return;
-            if(this.tempBlock) return;
-
-            $("#peso").toggleClass("bg-info bg-warning");
+        $("#peso").on("click", async ev=>{
             try{
+                if(this.tempBlock) return;
+                this.tempBlock = true;
                 let resp = await $.get(`/peso/${this.configuracion.id}/`);
                 this.ultimoPeso = resp;
                 $("#peso").text(resp.pesoGr + ' gr');
             }catch(e){
                 console.log(e);
+            }finally{
+                this.tempBlock = false;
             }
-        },3000);
-
-        $("#peso").on("click", ev=>{
-            $(ev.currentTarget).toggleClass("text-danger");
-            this.configuracion.solicitarPesoContinuo = !this.configuracion.solicitarPesoContinuo;
-            localStorage.setItem("configuracion-balanza-cuora-max", JSON.stringify(this.configuracion) );
         })
 
         $("[name='obtener-puertos']").click(async (e)=>{
@@ -74,6 +69,7 @@ class Index{
         });
         $("[name='enviar-marquesina']").click(async (e)=>{
             if(!this.conectado) return alert("No está conectado a la balanza");
+            if(this.tempBlock) return;
             this.tempBlock = true;
             let marquesina = $("[name='marquesina']").val() || '';
             let resp = await $.post({
@@ -85,6 +81,7 @@ class Index{
         });
         $("[name='obtener-sectores']").click(async (e)=>{
             if(!this.conectado) return alert("No está conectado a la balanza");
+            if(this.tempBlock) return;
             this.tempBlock = true;
             let resp = await $.get(`/sectores/${this.configuracion.id}/`);
             console.log(resp);
@@ -94,6 +91,7 @@ class Index{
         });
         $("[name='obtener-productos']").click(async (e)=>{
             if(!this.conectado) return alert("No está conectado a la balanza");
+            if(this.tempBlock) return;
             this.tempBlock = true;
             let resp = await $.get(`/productos/${this.configuracion.id}/`);
             console.log(resp);
@@ -105,6 +103,7 @@ class Index{
             this.agregarLineaProducto();
         });
         $("[name='grabar-productos']").click(async e=>{
+            if(this.tempBlock) return;
             this.tempBlock = true;
             await this.grabarProductos();
             this.tempBlock = false;
