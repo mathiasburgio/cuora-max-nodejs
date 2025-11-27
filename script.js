@@ -198,6 +198,9 @@ class Index{
         $("[name='cargar-productos-csv']").click((e)=>{
             this.cargarProductosCSV();
         });
+        $("[name='imprimir-listado-productos']").click(async (e)=>{
+            this.modalImprimir();
+        });
     }
     async obtenerPuertos(){
         let resp = await $.get('/puertos');
@@ -433,5 +436,126 @@ class Index{
         });
         console.log(resp);
         return resp;
+    }
+    modalImprimir(){
+        modal.show({
+            title: "Imprimir",
+            body: $("#modal-imprimir").html(),
+            buttons:"back"
+        })
+
+        $("#modal [name='imprimir']").on("click", async (e)=>{
+            let tamano = $("#modal [name='tamano']").val() || 16;
+            let columnas = $("#modal [name='columnas']").val() || 3; // no implementado por ahora
+            let orden = $("#modal [name='orden']").val() || 'plu';
+            let precio = $("#modal [name='precio']").val() || 'no';
+
+
+            let productos = [];
+            $("[name='tabla-productos'] tbody tr").each((ind, row)=>{
+                let $tr = $(row);
+                let plu = $tr.find("[name='plu']").val();
+                let nombre = $tr.find("[name='nombre']").val();
+                let sector = $tr.find("[name='sector']").val();
+                let precio = $tr.find("[name='precio']").val();
+                productos.push({
+                    plu: plu, 
+                    name: nombre,
+                    sector: sector,
+                    price: precio,
+                });
+            });
+
+            if(orden == 'sector'){
+                productos.sort((a,b)=>{
+                    if(a.sector < b.sector) return -1;
+                    if(a.sector > b.sector) return 1;
+                    else{
+                        if(a.name < b.name) return -1;
+                        if(a.name > b.name) return 1;
+                    }
+                    return 0;
+                });
+            }else if(orden == 'plu'){
+                productos.sort((a,b)=>{
+                    return Number(a.plu) - Number(b.plu);
+                });
+            }else if(orden == 'nombre'){
+                productos.sort((a,b)=>{
+                    if(a.name < b.name) return -1;
+                    if(a.name > b.name) return 1;
+                    return 0;
+                });
+            }
+
+            let bgWhite = true;
+            let body = productos.reduce((acc, prod)=>{
+                if(!parseInt(prod.plu)) return acc; //salto productos sin plu valido
+                bgWhite = !bgWhite;
+                let line = 
+                `<div class='row my-1 p-2 ${bgWhite ? 'bg-white' : 'bg-light'}'>
+                    <div class='col-2 font-weight-bold'>
+                        ${parseInt(prod.plu)}
+                    </div>
+                    <div class='col-8'>
+                        ${prod.name}
+                    </div>
+                    <div class='col-2 text-right font-weight-bold'>
+                        ${precio == 'si' ? `$ ${parseInt(prod.price)}` : ''}
+                    </div>
+                </div>`;
+                acc.push(line);
+                return acc;
+            }, []);
+
+            let html = `
+                <html>
+                <head>
+                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" >
+                    <style>
+                        /* Ocultar un elemento con una clase específica al imprimir */
+                        .no-imprimir {
+                            display: none;
+                        }
+
+                        /* Ocultar elementos con una clase específica en la pantalla */
+                        @media screen {
+                            .no-imprimir {
+                                display: block; /* Asegura que el elemento se muestra en pantalla */
+                            }
+                        }
+                    </style>
+                </head>
+                <body style='font-size:${tamano}px;'>
+                    <div class='text-center'>
+                        <button class='btn btn-primary no-imprimir m-auto' onclick="window.print(); window.close();">Imprimir</button>
+                    </div>
+                    <div class='container'>
+                        <h1 class='text-center'>Códigos System Cuora</h1>
+                        ${body.join('')}
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const win = window.open("", "_blank", "width=600,height=800");
+            win.document.open();
+            win.document.write(html);
+            modal.hide();
+            /* if(window.electronAPI?.isElectron){
+                const win = window.open("", "_blank", "width=600,height=800");
+                win.document.open();
+                win.document.write(html);
+                //win.document.close();
+            }else{
+                let w = window.open("/imprimir", "_blank");
+            } */
+            /* let resp = await $.post({
+                url: `/imprimir`,
+                data: { content: html }
+            });
+            console.log(resp);
+            modal.message("Listado enviado a la impresora"); */
+        });
     }
 }

@@ -15,11 +15,12 @@
         }
     </style>
 </head>
-<body style="position: relative;">
+<body style="position: relative; background-color: #ccc;">
     <span id="peso" class="text-monospace bg-info text-white p-3 rounded">
         PESO
     </span>
     <div class="container py-5">
+        <h1 class="text-center">Interfaz Systel Cuora y Cuora MAX</h1>
         <div class="card mb-5">
             <div class="card-header">
                 Conexión
@@ -113,28 +114,6 @@
                         <button class="btn btn-primary btn-sm mr-3" name="cargar-productos-csv">Cargar CSV</button>
                         <input type="file" name="input-cargar-productos-csv" accept=".csv" style="display: none;">
                     </div>
-                    <!-- <div class="col-4">
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text">PLU desde</span>
-                            </div>
-                            <input type="number" class="form-control" name="plu-inicial" value="0">
-                            <div class="input-group-append">
-                                <button class="btn btn-primary mr-3" name="obtener-productos">Obtener productos</button>
-                            </div>
-                        </div>
-                        <button class="btn btn-primary mr-3" name="descargar-productos-csv">Descargar CSV</button>
-                        <button class="btn btn-primary mr-3" name="cargar-productos-csv">Cargar CSV</button>
-                        <input type="file" name="input-cargar-productos-csv" accept=".csv" style="display: none;">
-                    </div> -->
-                    <!-- <div class="col-4 text-right">
-                        <div class="input-group">
-                            <input type="number" class="form-control" name="leer-plu" placeholder="PLU a leer">
-                            <div class="input-group-append">
-                                <button class="btn btn-primary" name="leer-producto">Leer</button>
-                            </div>
-                        </div>
-                    </div> -->
                 </div>
                 <div class="border mt-3">
                     <table class="table table-sm mb-0" name="tabla-productos">
@@ -152,11 +131,14 @@
                             <tr>
                                 <td colspan="100%">
                                     <div class="row">
-                                        <div class="col-8">
+                                        <div class="col-4">
                                             <button class="btn btn-block btn-primary" name="agregar-producto">Agregar producto</button>
                                         </div>
                                         <div class="col-4">
                                             <button class="btn btn-block btn-success" name="grabar-listado-productos">Grabar listado</button>
+                                        </div>
+                                        <div class="col-4">
+                                            <button class="btn btn-block btn-warning" name="imprimir-listado-productos">Imprimir listado</button>
                                         </div>
                                     </div>
                                 </td>
@@ -168,6 +150,47 @@
             
         </div>
         <div class="text-center">Software creado por <b>Mathias Burgio</b> (02227) 571951 - IP: <span id="dominio-raspberry"></span></div>
+    </div>
+
+    <div class="d-none">
+        <div id="modal-imprimir">
+            <div class="form-group">
+                <label for="">Tamaño texto</label>
+                <select name="tamano" class="form-control">
+                    <option value="14">14</option>
+                    <option value="16" selected>16</option>
+                    <option value="18">18</option>
+                    <option value="20">20</option>
+                    <option value="22">22</option>
+                    <option value="24">24</option>
+                </select>
+            </div>
+            <div class="form-group d-none"> <!--no implementado por ahora-->
+                <label for="">Columnas</label>
+                <select name="columnas" class="form-control">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="">Orden</label>
+                <select name="orden" class="form-control">
+                    <option value="sector">Por sector + nombre</option>
+                    <option value="plu" selected>Por PLU</option>
+                    <option value="nombre">Nombre</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="">Mostrar precio</label>
+                <select name="precio" class="form-control">
+                    <option value="si">Si</option>
+                    <option value="no" selected>No</option>
+                </select>
+            </div>
+            <button class="btn btn-warning" name="imprimir">Imprimir</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" ></script>

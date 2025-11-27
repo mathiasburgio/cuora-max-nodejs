@@ -4,11 +4,16 @@ const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const cuoraMax = require('./cuoraMax');
+const fs = require('fs');
+const path = require('path');
+const { exec } = require('child_process');
 var balanzas = [];
-const limit = 1;
+
 
 
 require('dotenv').config();
+const limit = Number(process.env.LIMIT_BALANZAS) || 1;
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
@@ -206,6 +211,28 @@ app.get("/leer-producto/:iddr", async (req, res)=>{
         res.status(500).end("error: " + err.message);
     }
 });
+app.post("/imprimir", async(req, res)=>{
+    try{
+        const content = req.body.content || '';
+        fs.writeFileSync(path.join(__dirname, 'printjob.html'), content, 'utf8');
+        
+        //abro el archivo con la aplicacion por defecto del sistema
+
+        exec(`start ${path.join(__dirname, 'printjob.html')}`);
+        res.end("ok");
+    }catch(err){
+        res.status(500).end("error: " + err.message);
+    }
+})
+app.get("/imprimir", async(req, res)=>{
+    try{
+        res.sendFile(path.join(__dirname, 'printjob.html'));
+        res.end();
+    }catch(err){
+        res.status(500).end("error: " + err.message);
+    }
+});
+
 //manejo de 404
 app.use((req, res, next) => {
     res.status(404).send("404 Not Found - " + req.originalUrl);

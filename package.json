@@ -1,10 +1,11 @@
 {
   "name": "cuora-max-nodejs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "test cuora max",
   "main": "index.js",
   "scripts": {
-    "start": "node ."
+    "start": "node .",
+    "update-direct": "node update-raspberry.js"
   },
   "author": "Mathias Burgio",
   "license": "ISC",
