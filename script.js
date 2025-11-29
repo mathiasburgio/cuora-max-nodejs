@@ -192,11 +192,11 @@ class Index{
                 this.tempBlock = false;
             }
         });
-        $("[name='descargar-productos-csv']").click((e)=>{
-            this.descargarProductosCSV();
+        $("[name='descargar-productos-json']").click((e)=>{
+            this.descargarProductosJSON();
         });
-        $("[name='cargar-productos-csv']").click((e)=>{
-            this.cargarProductosCSV();
+        $("[name='cargar-productos-json']").click((e)=>{
+            this.cargarProductosJSON();
         });
         $("[name='imprimir-listado-productos']").click(async (e)=>{
             this.modalImprimir();
@@ -361,51 +361,50 @@ class Index{
 
         return $tr;
     }
-    descargarProductosCSV(separador = ','){
-        let csv = "plu,sector,nombre,precio\n";
+    descargarProductosJSON(){
+        let ar = [];
         $("[name='tabla-productos'] tbody tr").each((i, tr)=>{
             let plu = $(tr).find("[name='plu']").val() || '';
             let sector = $(tr).find("[name='sector']").val() || '';
+            let sectorText = $(tr).find("[name='sector'] option:selected").text() || '';
             let nombre = $(tr).find("[name='nombre']").val() || '';
             let precio = $(tr).find("[name='precio']").val() || '0';
-            csv += `"${plu}"${separador}"${sector}"${separador}"${nombre}"${separador}"${Number(precio)}"\n`;
+            ar.push({
+                plu: plu,
+                sector: sector,
+                sectorText: sectorText,
+                nombre: nombre,
+                precio: Number(precio)
+            });
         });
         
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const blob = new Blob([JSON.stringify(ar, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'productos.csv';
+        a.download = 'productos.json';
         a.click();
         URL.revokeObjectURL(url);
-        modal.message("Archivo CSV descargado");
+        modal.message("Archivo JSON descargado");
     }
-    cargarProductosCSV(separador = ","){
-        $("[name='input-cargar-productos-csv']").click();
-        $("[name='input-cargar-productos-csv']")
+    cargarProductosJSON(){
+        $("[name='input-cargar-productos-json']").click();
+        $("[name='input-cargar-productos-json']")
         .off('change')
         .on('change', (e)=>{
             let file = e.target.files[0];
             if(!file) return;
             let reader = new FileReader();
             reader.onload = (event) => {
-                let text = event.target.result;
+                let json = JSON.parse(event.target.result);
                 $("[name='tabla-productos'] tbody").html("");
-                text.split('\n').forEach((linea, index)=>{
-                    if(index == 0) return; //salto la primera linea (headers)
-                    if(!linea.trim()) return;
-                    let partes = linea.split(separador);
-                    let plu = (partes[0] || '').replace(/"/g,'').trim();
-                    let sector = (partes[1] || '').replace(/"/g,'').trim();
-                    let nombre = (partes[2] || '').replace(/"/g,'').trim();
-                    let precio = (partes[3] || '0').replace(/"/g,'').trim();
-                    
+                for(let item of json){
                     let tr = this.agregarLineaProducto();
-                    tr.find("[name='plu']").val(plu);
-                    tr.find("[name='sector']").val(sector);
-                    tr.find("[name='nombre']").val(nombre);
-                    tr.find("[name='precio']").val(Number(precio || 0));
-                });
+                    tr.find("[name='plu']").val(item.plu || '');
+                    tr.find("[name='sector']").val(item.sector || '');
+                    tr.find("[name='nombre']").val(item.nombre || '');
+                    tr.find("[name='precio']").val(Number(item.precio || 0));
+                }
             };
             reader.readAsText(file);
         });
