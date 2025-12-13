@@ -18,6 +18,8 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
+if(fs.existsSync( path.join(__dirname, 'data') ) === false) fs.mkdirSync( path.join(__dirname, 'data') );
+
 //funciones globales
 app.get("/ping", (req, res)=>{
     res.send("pong");

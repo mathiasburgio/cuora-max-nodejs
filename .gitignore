@@ -1,4 +1,5 @@
 /node_modules
+/data
 .env
 cuora-max-nodejs.zip
 cuora-max-nodejs.rar

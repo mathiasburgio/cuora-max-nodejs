@@ -1,0 +1,4 @@
+-en data grabar los articulos con iva e interactuar con dicho archivo como si fuese una base de datos.
+-en el front permitir sincornizar todos
+-en el front permitir sincronizar individualmente
+-en el front buscar la forma de verificar si el dato se guardo correctamente en la balanza

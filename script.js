@@ -201,6 +201,19 @@ class Index{
         $("[name='imprimir-listado-productos']").click(async (e)=>{
             this.modalImprimir();
         });
+
+        let preGuardados = JSON.parse(localStorage.getItem("ultimo-listado-productos") || "[]");
+        if(Array.isArray(preGuardados) && preGuardados.length > 0){
+            $("[name='tabla-productos'] tbody").html("");
+            for(let item of json){
+                let tr = this.agregarLineaProducto();
+                tr.find("[name='plu']").val(item?.plu || '');
+                tr.find("[name='sector']").val(item?.sector || '');
+                tr.find("[name='nombre']").val(item?.nombre || '');
+                tr.find("[name='precio']").val(Number(item?.precio || 0));
+                tr.find("[name='iva']").val(Number(item?.iva || 21));
+            };
+        }
     }
     async obtenerPuertos(){
         let resp = await $.get('/puertos');
@@ -310,6 +323,7 @@ class Index{
                 </td>
                 <td><input autocomplete="off" name="nombre" type="text" class='form-control form-control-sm' /></td>
                 <td><input autocomplete="off" name="precio" type="text" class='form-control form-control-sm' /></td>
+                <td><input autocomplete="off" name="iva" type="text" class='form-control form-control-sm' /></td>
                 <td>
                     <button class="btn btn-success btn-sm" name="grabar-producto">Grabar</button>
                     <button class="btn btn-danger btn-sm d-none" name="eliminar-producto">Eliminar</button>
@@ -369,12 +383,14 @@ class Index{
             let sectorText = $(tr).find("[name='sector'] option:selected").text() || '';
             let nombre = $(tr).find("[name='nombre']").val() || '';
             let precio = $(tr).find("[name='precio']").val() || '0';
+            let iva = $(tr).find("[name='iva']").val() || 21;
             ar.push({
                 plu: plu,
                 sector: sector,
                 sectorText: sectorText,
                 nombre: nombre,
-                precio: Number(precio)
+                precio: Number(precio),
+                iva: Number(iva)
             });
         });
         
@@ -404,6 +420,7 @@ class Index{
                     tr.find("[name='sector']").val(item.sector || '');
                     tr.find("[name='nombre']").val(item.nombre || '');
                     tr.find("[name='precio']").val(Number(item.precio || 0));
+                    tr.find("[name='iva']").val(Number(item.iva || 21));
                 }
             };
             reader.readAsText(file);
@@ -434,6 +451,7 @@ class Index{
             data: { productos: JSON.stringify(productos) }
         });
         console.log(resp);
+        localStorage.setItem("ultimo-listado-productos", JSON.stringify(productos) );
         return resp;
     }
     modalImprimir(){
